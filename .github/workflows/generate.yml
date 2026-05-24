@@ -1,45 +1,104 @@
-name: generate
+name: generate-srs
 
-on: 
+on:
   push:
     branches: [ main ]
-  workflow_dispatch: 
+    paths:
+      - "*.json"
+      - "sing-box-rulesets/**/*.json"
+      - ".github/workflows/generate-srs.yml"
+      - "!srs/**"
+  workflow_dispatch:
+    inputs:
+      ruleset_dir:
+        description: "Source rule-set JSON directory. Use sing-box-rulesets or ."
+        required: false
+        default: "sing-box-rulesets"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-srs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    generatesrs:
-        runs-on: ubuntu-latest
-        steps:
-        - uses: actions/checkout@v4
-        - name: setup singbox
-          env:
-            SINGBOX_DEB_URL: "https://github.com/SagerNet/sing-box/releases/download/v1.10.1/sing-box_1.10.1_linux_amd64.deb"
-          run: |
-            wget -O sing-box.deb $SINGBOX_DEB_URL
-            sudo dpkg -i sing-box.deb
-        - name: generate singbox config
-          run: |
-            if [ ! -d "srs" ]; then
-              mkdir srs
-            else
-              echo 已存在srs目录
+  generatesrs:
+    runs-on: ubuntu-latest
+    env:
+      SING_BOX_VERSION: "1.12.25"
+      DEFAULT_RULESET_DIR: "sing-box-rulesets"
+      OUTPUT_DIR: "srs"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup sing-box 1.12.25
+        run: |
+          set -euo pipefail
+          SING_BOX_DEB_URL="https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box_${SING_BOX_VERSION}_linux_amd64.deb"
+          curl -fL --retry 3 --retry-delay 3 -o sing-box.deb "$SING_BOX_DEB_URL"
+          sudo apt-get update
+          sudo apt-get install -y jq ./sing-box.deb
+          sing-box version
+
+      - name: Generate .srs rule sets
+        env:
+          INPUT_RULESET_DIR: ${{ inputs.ruleset_dir || '' }}
+        run: |
+          set -euo pipefail
+
+          RULESET_DIR="${INPUT_RULESET_DIR:-$DEFAULT_RULESET_DIR}"
+          if [ ! -d "$RULESET_DIR" ]; then
+            echo "Directory '$RULESET_DIR' not found, fallback to repository root."
+            RULESET_DIR="."
+          fi
+
+          mkdir -p "$OUTPUT_DIR"
+          found=0
+          compiled=0
+
+          while IFS= read -r -d '' file; do
+            found=$((found + 1))
+            filename="$(basename "$file" .json)"
+            output="$OUTPUT_DIR/$filename.srs"
+
+            version="$(jq -r '.version // empty' "$file" 2>/dev/null || true)"
+            if ! jq -e 'type == "object" and (.rules | type == "array") and (.version | type == "number")' "$file" >/dev/null 2>&1; then
+              echo "Skip non source rule-set JSON: $file"
+              continue
             fi
-            for file in *.json; do
-              filename=$(basename "$file" .json)
-              sing-box rule-set compile "$file" -o "srs/$filename.srs"
-            done
-        - name: Commit and push *.srs
-          run: |
-            git config --global user.email "action@github.com"
-            git config --global user.name "GitHub Action"
-            git add srs
-            if git diff --staged --quiet; then
-              echo "No changes to commit"
-              exit 0
-            else
-              git commit -m "Generate srs files"
-              echo "commit message: Generate srs files"
-              git push 
+
+            if [ "$version" -gt 3 ]; then
+              echo "Unsupported rule-set source version $version for sing-box ${SING_BOX_VERSION}: $file"
+              echo "sing-box 1.12.x should use source rule-set version <= 3."
+              exit 1
             fi
 
+            echo "Compile $file -> $output"
+            sing-box rule-set compile --output "$output" "$file"
+            compiled=$((compiled + 1))
+          done < <(find "$RULESET_DIR" -maxdepth 1 -type f -name "*.json" -print0 | sort -z)
 
+          echo "Found JSON files: $found"
+          echo "Compiled source rule sets: $compiled"
 
+          if [ "$compiled" -eq 0 ]; then
+            echo "No valid source rule-set JSON files were compiled."
+            exit 1
+          fi
+
+      - name: Commit and push .srs files
+        run: |
+          set -euo pipefail
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add "$OUTPUT_DIR"
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Generate srs files for sing-box 1.12.25"
+          git pull --rebase
+          git push
