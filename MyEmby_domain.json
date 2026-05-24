@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "domain_suffix": [
+        "114514.quest",
+        "misty.cx",
+        "nijigem.by",
+        "emby.ichinosekotomi.com",
+        "lite.saturdayvideo.top",
+        "711.lol",
+        "cn2gias.uk",
+        "nebula-media.org",
+        "feiyue.lol",
+        "biliblili.uk",
+        "emby.istyboe.top",
+        "sfcj.org.com",
+        "101514.xyz",
+        "miraiemby.com",
+        "lyezi.cc",
+        "okemby.org",
+        "public.shrekmedia.org",
+        "emby.dnscf.dpdns.org",
+        "hohai.eu.org",
+        "handoumedia.top"
+      ]
+    }
+  ]
+}

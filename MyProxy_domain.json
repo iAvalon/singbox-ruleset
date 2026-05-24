@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "domain_suffix": [
+        "xn--9kqz23b19z.com",
+        "ipinfo.io",
+        "ip.sb",
+        "ipwho.is",
+        "ipapi.is",
+        "ipify.org",
+        "ip-api.com",
+        "linkcube.org",
+        "dns-dynamic.net",
+        "selinux.link",
+        "oldfriend.me",
+        "crvesoft.top",
+        "wcloud.store",
+        "weyolo.com",
+        "linux.do",
+        "xiaoyao-88.com",
+        "immortalwrt.org",
+        "jkun.waimaosass.icu",
+        "link123.52pokemon99.cc"
+      ]
+    }
+  ]
+}
